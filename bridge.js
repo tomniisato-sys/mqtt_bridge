@@ -6,7 +6,6 @@ const mqttPort = process.env.MQTT_PORT;
 const mqttUser = process.env.MQTT_USER;
 const mqttPass = process.env.MQTT_PASS;
 
-const BLYNK_TOKEN = process.env.BLYNK_TOKEN;
 
 // Step 1: Import libraries
 const mqtt = require('mqtt');
@@ -44,6 +43,7 @@ client.on('message', async (topic, message) => {
   try {
     const data = JSON.parse(payload); // if JSON format
 
+    // Save to Supabase
     const { error } = await supabase
       .from('sensor_data')
       .insert([
@@ -60,11 +60,4 @@ client.on('message', async (topic, message) => {
     console.error('Failed to parse message:', err);
   }
 });
-
-const axios = require('axios');
-const BLYNK_TOKEN = process.env.BLYNK_TOKEN;
-
-axios.get(`https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&v1=23.5`)
-  .then(response => console.log('Blynk updated'))
-  .catch(err => console.error(err));
 

@@ -14,5 +14,13 @@
     "@supabase/supabase-js": "^2.57.2",
     "axios": "^1.11.0",
     "mqtt": "^5.14.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomniisato-sys/mqtt_bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tomniisato-sys/mqtt_bridge/issues"
+  },
+  "homepage": "https://github.com/tomniisato-sys/mqtt_bridge#readme"
 }
