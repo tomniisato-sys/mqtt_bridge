@@ -1,63 +1,69 @@
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-
-const mqttHost = process.env.MQTT_HOST;
-const mqttPort = process.env.MQTT_PORT;
-const mqttUser = process.env.MQTT_USER;
-const mqttPass = process.env.MQTT_PASS;
-
-
-// Step 1: Import libraries
+// ====== Imports and Config ======
 const mqtt = require('mqtt');
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
 
-// Step 2: Supabase setup
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
+// Load environment variables
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const MQTT_HOST = process.env.MQTT_HOST;
+const MQTT_PORT = process.env.MQTT_PORT;
+const MQTT_USER = process.env.MQTT_USER;
+const MQTT_PASS = process.env.MQTT_PASS;
+const BLYNK_TOKEN = process.env.BLYNK_TOKEN;
 
-// Step 3: HiveMQ connection
+// ====== Supabase client ======
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ====== MQTT client and options ======
 const options = {
-  host: process.env.MQTT_HOST,
-  port: process.env.MQTT_PORT,
-  username: process.env.MQTT_USER,
-  password: process.env.MQTT_PASS,
+  host: MQTT_HOST,
+  port: MQTT_PORT,
+  username: MQTT_USER,
+  password: MQTT_PASS,
   protocol: 'mqtts'
 };
 
 const client = mqtt.connect(options);
 
-// Step 4: Subscribe to topics
+// ====== Subscribe to MQTT topics ======
 client.on('connect', () => {
   console.log('Connected to HiveMQ!');
-  client.subscribe('sensor/#'); // all sensor topics
+  client.subscribe('sensor/#'); // Listen to all sensor topics
 });
 
-// Step 5: Handle incoming messages
+// ====== Handle incoming MQTT messages ======
 client.on('message', async (topic, message) => {
   const payload = message.toString();
   console.log(`Received ${payload} on topic ${topic}`);
 
   try {
-    const data = JSON.parse(payload); // if JSON format
+    // Parse incoming JSON message
+    const data = JSON.parse(payload); // e.g., { temperature: 23.5, humidity: 60 }
 
-    // Save to Supabase
-    const { error } = await supabase
-      .from('sensor_data')
-      .insert([
-        {
-          topic: topic,
-          temperature: data.temperature,
-          humidity: data.humidity,
-          timestamp: new Date()
-        }
-      ]);
+    // --- 1️⃣ Insert data into Supabase ---
+    supabase.from('sensor_data').insert([{
+      topic: topic,
+      temperature: data.temperature,
+      humidity: data.humidity,
+      timestamp: new Date()
+    }])
+    .then(({ error }) => {
+      if (error) console.error('Supabase insert error:', error);
+    });
 
-    if (error) console.error('Supabase insert error:', error);
+    // --- 2️⃣ Push real-time data to Blynk ---
+    // Temperature to virtual pin V1
+    axios.get(`https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&v1=${data.temperature}`)
+      .then(() => console.log(`Blynk updated with temperature: ${data.temperature}`))
+      .catch(err => console.error('Blynk update error:', err));
+
+    // Humidity to virtual pin V2 (optional)
+    axios.get(`https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&v2=${data.humidity}`)
+      .then(() => console.log(`Blynk updated with humidity: ${data.humidity}`))
+      .catch(err => console.error('Blynk update error:', err));
+
   } catch (err) {
-    console.error('Failed to parse message:', err);
+    console.error('Failed to handle message:', err);
   }
 });
-
