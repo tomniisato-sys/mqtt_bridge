@@ -2,21 +2,22 @@
 const mqtt = require('mqtt');
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
-const http = require('http'); // <-- added for tiny HTTP server
+const http = require('http'); // For tiny HTTP server on Render
 
-// Load environment variables
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
-const MQTT_HOST = process.env.MQTT_HOST;
-const MQTT_PORT = process.env.MQTT_PORT;
-const MQTT_USER = process.env.MQTT_USER;
-const MQTT_PASS = process.env.MQTT_PASS;
-const BLYNK_TOKEN = process.env.BLYNK_TOKEN;
+// ====== Environment Variables ======
+// Make sure these are set in Render's Environment Variables settings
+const SUPABASE_URL = process.env.SUPABASE_URL;   // Your Supabase project URL
+const SUPABASE_KEY = process.env.SUPABASE_KEY;   // Your Supabase API key
+const MQTT_HOST = process.env.MQTT_HOST;         // HiveMQ / MQTT broker host
+const MQTT_PORT = process.env.MQTT_PORT;         // MQTT broker port
+const MQTT_USER = process.env.MQTT_USER;         // MQTT username
+const MQTT_PASS = process.env.MQTT_PASS;         // MQTT password
+const BLYNK_TOKEN = process.env.BLYNK_TOKEN;     // Your Blynk token
 
-// ====== Supabase client ======
+// ====== Supabase Client ======
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ====== MQTT client and options ======
+// ====== MQTT Client and Options ======
 const options = {
   host: MQTT_HOST,
   port: MQTT_PORT,
@@ -27,41 +28,39 @@ const options = {
 
 const client = mqtt.connect(options);
 
-// ====== Subscribe to MQTT topics ======
+// ====== Subscribe to MQTT Topics ======
 client.on('connect', () => {
   console.log('Connected to HiveMQ!');
-  client.subscribe('sensor/#'); // Listen to all sensor topics
+
+  // --- 🔹 Add your MQTT topics here ---
+  client.subscribe('arduino/current'); // Example: listen to all topics under 'sensor/'
+  // You can add more topics like:
+  // client.subscribe('sensor/temperature');
+  // client.subscribe('sensor/humidity');
 });
 
-// ====== Handle incoming MQTT messages ======
+// ====== Handle Incoming MQTT Messages ======
 client.on('message', async (topic, message) => {
   const payload = message.toString();
   console.log(`Received ${payload} on topic ${topic}`);
 
   try {
-    // Parse incoming JSON message
-    const data = JSON.parse(payload); // e.g., { temperature: 23.5, humidity: 60 }
+    const data = JSON.parse(payload); // Example: { temperature: 23.5, humidity: 60 }
 
-    // --- 1️⃣ Insert data into Supabase ---
-    supabase.from('sensor_data').insert([{
+    // --- 🔹 Insert into Supabase ---
+    await supabase.from('sensor_data').insert([{
       topic: topic,
-      temperature: data.temperature,
-      humidity: data.humidity,
+      current: data.current, // Ensure your JSON has this field
       timestamp: new Date()
-    }])
-    .then(({ error }) => {
+    }]).then(({ error }) => {
       if (error) console.error('Supabase insert error:', error);
     });
 
-    // --- 2️⃣ Push real-time data to Blynk ---
-    // Temperature to virtual pin V1
-    axios.get(`https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&v1=${data.temperature}`)
-      .then(() => console.log(`Blynk updated with temperature: ${data.temperature}`))
-      .catch(err => console.error('Blynk update error:', err));
-
-    // Humidity to virtual pin V2 (optional)
-    axios.get(`https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&v2=${data.humidity}`)
-      .then(() => console.log(`Blynk updated with humidity: ${data.humidity}`))
+    // --- 🔹 Push to Blynk ---
+    // Map your JSON fields to Blynk virtual pins
+    // V1 = current (change if needed)
+    axios.get(`https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&v1=${data.current}`)
+      .then(() => console.log(`Blynk updated with current: ${data.current}`))
       .catch(err => console.error('Blynk update error:', err));
 
   } catch (err) {
@@ -69,7 +68,8 @@ client.on('message', async (topic, message) => {
   }
 });
 
-// ====== Tiny HTTP server for Render ======
+// ====== Tiny HTTP Server for Render ======
+// Do NOT remove this — Render requires at least one open port
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
   res.writeHead(200);
@@ -77,3 +77,9 @@ http.createServer((req, res) => {
 }).listen(PORT, () => {
   console.log(`HTTP server listening on port ${PORT}`);
 });
+
+// ====== Optional: Heartbeat for Logs ======
+// Prints every 30 seconds to show the script is alive
+setInterval(() => {
+  console.log("Bridge is alive and running...");
+}, 30000);
