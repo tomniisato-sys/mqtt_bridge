@@ -2,6 +2,7 @@
 const mqtt = require('mqtt');
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
+const http = require('http'); // <-- added for tiny HTTP server
 
 // Load environment variables
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -66,4 +67,13 @@ client.on('message', async (topic, message) => {
   } catch (err) {
     console.error('Failed to handle message:', err);
   }
+});
+
+// ====== Tiny HTTP server for Render ======
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end("Bridge is running!");
+}).listen(PORT, () => {
+  console.log(`HTTP server listening on port ${PORT}`);
 });
